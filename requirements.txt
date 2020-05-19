@@ -1,0 +1,4 @@
+git+git://github.com/supernothing/bot-events@master#egg=bot_events
+click~=7.1.2
+polyswarm-api~=2.1.2
+requests~=2.23.0

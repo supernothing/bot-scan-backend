@@ -1,7 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
 import socket
-import queue
-import threading
 
 import click
 import requests
@@ -25,15 +23,19 @@ class ResultWaiter(object):
         self.api = api
 
     def wait_for_result(self, instance_id, context):
-        result = self.api.wait_for_result(instance_id)
-        event = Result()
-        event.url = result.permalink
-        event.polyscore = result.polyscore
-        # TODO this emulates current bot, we can do better
-        # I just need more reasonable thresholds for polyscore
-        event.malicious = len(result.malicious_assertions) > 1
-        event.context = context
-        self.producer.add_event(event)
+        try:
+            result = self.api.wait_for_result(instance_id)
+            event = Result()
+            event.url = result.permalink
+            event.polyscore = result.polyscore
+            # TODO this emulates current bot, we can do better
+            # I just need more reasonable thresholds for polyscore
+            event.malicious = len(result.malicious_assertions) > 1
+            event.context.CopyFrom(context)
+            self.producer.add_event(event)
+        except Exception as e:
+            logger.exception('Exception occurred while waiting for result: %s %s %s', instance_id, context, e)
+
 
 
 @click.command()
@@ -64,8 +66,7 @@ def bot_scan_backend(community, redis, consumer_name, api_key):
                 else:
                     logger.warning('Unsupported artifact type %s, maybe update this backend', event.artifact_type)
                     continue
-                future = pool.submit(waiter.wait_for_result, result.id,
-                                     event.context.telegram or event.context.twitter)
+                future = pool.submit(waiter.wait_for_result, result.id, event.context)
 
             except Exception as e:
                 logger.exception('Exception occurred processing event %s: %s', event, e)
